@@ -13,7 +13,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfVolume
+from homeassistant.const import EntityCategory, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -27,7 +27,7 @@ from .coordinator import AiguesDeReusCoordinator, CoordinatorData
 class AdrSensorDescription(SensorEntityDescription):
     """Describes an Aigües de Reus sensor."""
 
-    value_fn: Callable[[CoordinatorData], float | None]
+    value_fn: Callable[[CoordinatorData], float | datetime | None]
     last_reset_fn: Callable[[CoordinatorData], datetime | None] | None = None
 
 
@@ -72,6 +72,14 @@ SENSORS: tuple[AdrSensorDescription, ...] = (
         suggested_display_precision=3,
         value_fn=lambda d: d.last_meter_reading,
     ),
+    AdrSensorDescription(
+        key="last_sync",
+        translation_key="last_sync",
+        name="Última sincronització",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.last_sync,
+    ),
 )
 
 
@@ -114,7 +122,7 @@ class AdrSensor(CoordinatorEntity[AiguesDeReusCoordinator], SensorEntity):
         )
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | datetime | None:
         if self.coordinator.data is None:
             return None
         return self.entity_description.value_fn(self.coordinator.data)

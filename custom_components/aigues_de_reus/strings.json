@@ -31,7 +31,8 @@
       "hourly_consumption": { "name": "Darrer consum horari" },
       "daily_consumption": { "name": "Consum d'avui" },
       "monthly_consumption": { "name": "Consum d'aquest mes" },
-      "meter_reading": { "name": "Lectura del comptador" }
+      "meter_reading": { "name": "Lectura del comptador" },
+      "last_sync": { "name": "Última sincronització" }
     }
   },
   "options": {

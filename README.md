@@ -14,6 +14,7 @@ Per cada contracte configurat es creen aquests sensors:
 | Consum d'avui | `water` | `total_increasing` | m³ | informatiu |
 | Consum d'aquest mes | `water` | `total_increasing` | m³ | informatiu |
 | Lectura del comptador | `water` | `total_increasing` | m³ | _opcional_ |
+| Última sincronització | `timestamp` | — | — | diagnòstic |
 
 A més, la integració **importa estadístiques horàries** (mètric extern `aigues_de_reus:water_consumption_<contracte>`) directament al *recorder* de Home Assistant. **Aquesta és l'estadística que has d'afegir al panell d'energia** — mostra l'històric retroactiu sencer i no només des que vas instal·lar la integració.
 

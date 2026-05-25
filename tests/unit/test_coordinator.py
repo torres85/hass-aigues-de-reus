@@ -44,6 +44,20 @@ class TestRowParsing:
         assert dt.hour == 0
 
 
+class TestCoordinatorData:
+    def test_defaults(self):
+        d = CoordinatorData()
+        assert d.last_hourly_value is None
+        assert d.last_sync is None
+        assert d.raw_hourly == []
+
+    def test_last_sync_can_be_set(self):
+        from datetime import timezone
+        ts = datetime(2026, 5, 25, 10, 0, tzinfo=timezone.utc)
+        d = CoordinatorData(last_sync=ts)
+        assert d.last_sync == ts
+
+
 class TestStatisticImport:
     """Validate the running_sum / cutoff logic — the bug we fought.
 

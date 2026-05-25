@@ -42,6 +42,7 @@ class CoordinatorData:
     month_consumption_m3: float | None = None
     last_meter_reading: float | None = None
     last_meter_reading_at: datetime | None = None
+    last_sync: datetime | None = None
     raw_hourly: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -196,6 +197,7 @@ class AiguesDeReusCoordinator(DataUpdateCoordinator[CoordinatorData]):
             snapshot.last_hourly_at = self._row_datetime(row)
             break
 
+        snapshot.last_sync = dt_util.utcnow()
         return snapshot
 
     @staticmethod

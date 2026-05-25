@@ -9,5 +9,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/torres85/hass-aigues-de-reus/issues",
   "requirements": ["beautifulsoup4>=4.12.0"],
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

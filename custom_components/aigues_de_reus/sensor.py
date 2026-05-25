@@ -80,6 +80,14 @@ SENSORS: tuple[AdrSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.last_sync,
     ),
+    AdrSensorDescription(
+        key="last_reading",
+        translation_key="last_reading",
+        name="Última lectura",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.last_hourly_at,
+    ),
 )
 
 

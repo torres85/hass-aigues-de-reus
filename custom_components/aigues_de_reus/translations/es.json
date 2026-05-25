@@ -32,7 +32,8 @@
       "daily_consumption": { "name": "Consumo de hoy" },
       "monthly_consumption": { "name": "Consumo de este mes" },
       "meter_reading": { "name": "Lectura del contador" },
-      "last_sync": { "name": "Última sincronización" }
+      "last_sync": { "name": "Última sincronización" },
+      "last_reading": { "name": "Última lectura" }
     }
   },
   "options": {

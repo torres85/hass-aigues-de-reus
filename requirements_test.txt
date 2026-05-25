@@ -3,3 +3,7 @@ pytest-asyncio>=0.23
 pytest-cov>=5.0
 pytest-homeassistant-custom-component>=0.13.180
 aioresponses>=0.7.6
+
+# Runtime deps of the integration that the unit tests need at import time.
+# Kept here so tests can run without a HACS install.
+beautifulsoup4>=4.12.0

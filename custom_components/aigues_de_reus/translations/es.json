@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aigües de Reus",
+        "description": "Introduce las credenciales de la Oficina Virtual.",
+        "data": {
+          "nif": "NIF",
+          "password": "Contraseña"
+        }
+      },
+      "contract": {
+        "title": "Elegir contrato",
+        "data": {
+          "contrato": "Contrato"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Credenciales inválidas",
+      "cannot_connect": "No se ha podido conectar al portal",
+      "no_contracts": "No se han encontrado contratos en la Oficina Virtual"
+    },
+    "abort": {
+      "already_configured": "Este contrato ya está configurado",
+      "no_usable_contracts": "No hay contratos con datos completos"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hourly_consumption": { "name": "Último consumo horario" },
+      "daily_consumption": { "name": "Consumo de hoy" },
+      "monthly_consumption": { "name": "Consumo de este mes" },
+      "meter_reading": { "name": "Lectura del contador" }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Aigües de Reus",
+        "description": "Ajusta la frecuencia de consulta y el periodo de histórico a importar.",
+        "data": {
+          "update_interval_hours": "Intervalo de actualización (horas)",
+          "backfill_days": "Días de histórico a importar"
+        },
+        "data_description": {
+          "update_interval_hours": "Cada cuántas horas se consulta el portal (1-24).",
+          "backfill_days": "Cuántos días atrás se descargan la primera vez o al forzar un backfill (7-180)."
+        }
+      }
+    }
+  },
+  "services": {
+    "force_backfill": {
+      "name": "Forzar backfill",
+      "description": "Re-importa las estadísticas horarias del periodo configurado.",
+      "fields": {
+        "entry_id": {
+          "name": "Entrada de configuración",
+          "description": "ID opcional de la integración. Si se omite se aplica a todas."
+        }
+      }
+    }
+  }
+}

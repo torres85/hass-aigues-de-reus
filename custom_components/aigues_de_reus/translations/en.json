@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aigües de Reus",
+        "description": "Enter your customer portal credentials.",
+        "data": {
+          "nif": "NIF",
+          "password": "Password"
+        }
+      },
+      "contract": {
+        "title": "Choose contract",
+        "data": {
+          "contrato": "Contract"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid credentials",
+      "cannot_connect": "Failed to connect to the portal",
+      "no_contracts": "No contracts found in the customer portal"
+    },
+    "abort": {
+      "already_configured": "This contract is already configured",
+      "no_usable_contracts": "No contracts with complete data"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hourly_consumption": { "name": "Latest hourly consumption" },
+      "daily_consumption": { "name": "Today's consumption" },
+      "monthly_consumption": { "name": "This month's consumption" },
+      "meter_reading": { "name": "Meter reading" }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Aigües de Reus options",
+        "description": "Adjust polling frequency and the backfill window.",
+        "data": {
+          "update_interval_hours": "Update interval (hours)",
+          "backfill_days": "Backfill window (days)"
+        },
+        "data_description": {
+          "update_interval_hours": "How often the portal is polled (1-24 hours).",
+          "backfill_days": "How many days are fetched on first run or when a backfill is forced (7-180)."
+        }
+      }
+    }
+  },
+  "services": {
+    "force_backfill": {
+      "name": "Force backfill",
+      "description": "Re-import hourly statistics for the configured period.",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry",
+          "description": "Optional integration entry ID. If omitted, applies to all entries."
+        }
+      }
+    }
+  }
+}

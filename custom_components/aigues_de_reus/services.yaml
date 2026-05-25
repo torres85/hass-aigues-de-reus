@@ -1,0 +1,16 @@
+force_backfill:
+  name: Forçar backfill
+  description: >
+    Torna a importar les estadístiques horàries dels últims N dies (segons
+    la configuració). Útil si has perdut dades o vols ampliar l'històric.
+  fields:
+    entry_id:
+      name: Entrada de configuració
+      description: >
+        ID opcional de la integració concreta. Si s'omet, s'aplica a totes
+        les entrades configurades.
+      example: 01J9ZA12345
+      required: false
+      selector:
+        config_entry:
+          integration: aigues_de_reus

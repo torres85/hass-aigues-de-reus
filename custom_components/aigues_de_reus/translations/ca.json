@@ -1,0 +1,65 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aigües de Reus",
+        "description": "Introdueix les credencials de l'Oficina Virtual.",
+        "data": {
+          "nif": "NIF",
+          "password": "Contrasenya"
+        }
+      },
+      "contract": {
+        "title": "Tria contracte",
+        "data": {
+          "contrato": "Contracte"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Credencials invàlides",
+      "cannot_connect": "No s'ha pogut connectar al portal",
+      "no_contracts": "No s'han trobat contractes a l'Oficina Virtual"
+    },
+    "abort": {
+      "already_configured": "Aquest contracte ja està configurat",
+      "no_usable_contracts": "No hi ha contractes amb dades completes"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hourly_consumption": { "name": "Darrer consum horari" },
+      "daily_consumption": { "name": "Consum d'avui" },
+      "monthly_consumption": { "name": "Consum d'aquest mes" },
+      "meter_reading": { "name": "Lectura del comptador" }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcions d'Aigües de Reus",
+        "description": "Ajusta la freqüència de consulta i el període d'històric a importar.",
+        "data": {
+          "update_interval_hours": "Interval d'actualització (hores)",
+          "backfill_days": "Dies d'històric a importar"
+        },
+        "data_description": {
+          "update_interval_hours": "Cada quantes hores es consulta el portal (1-24).",
+          "backfill_days": "Quants dies enrere es baixen el primer cop o quan es força un backfill (7-180)."
+        }
+      }
+    }
+  },
+  "services": {
+    "force_backfill": {
+      "name": "Forçar backfill",
+      "description": "Re-importa les estadístiques horàries del període configurat.",
+      "fields": {
+        "entry_id": {
+          "name": "Entrada de configuració",
+          "description": "ID opcional de la integració. Si s'omet s'aplica a totes."
+        }
+      }
+    }
+  }
+}

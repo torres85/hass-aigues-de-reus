@@ -1,0 +1,13 @@
+{
+  "domain": "aigues_de_reus",
+  "name": "Aigües de Reus",
+  "codeowners": ["@torres85"],
+  "config_flow": true,
+  "dependencies": ["recorder"],
+  "documentation": "https://github.com/torres85/hass-aigues-de-reus",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/torres85/hass-aigues-de-reus/issues",
+  "requirements": ["beautifulsoup4>=4.12.0"],
+  "version": "0.1.0"
+}

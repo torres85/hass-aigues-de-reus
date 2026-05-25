@@ -201,7 +201,13 @@ class TestForceBackfillFlag:
 
 class TestOptionsRespected:
     """Confirm the coordinator reads update_interval_hours / backfill_days
-    from entry.options."""
+    from entry.options.
+
+    Modern HA's DataUpdateCoordinator.__init__ calls frame.report_usage() to
+    nudge integrations to pass config_entry explicitly. That helper requires
+    HA's frame context, which doesn't exist in pure unit tests, so we patch
+    it to a no-op for these two cases.
+    """
 
     def test_default_interval_when_no_options(self):
         from datetime import timedelta
@@ -213,7 +219,8 @@ class TestOptionsRespected:
         client.contrato = "9999999"
         hass = MagicMock()
 
-        coord = AiguesDeReusCoordinator(hass, entry, client)
+        with patch("homeassistant.helpers.frame.report_usage"):
+            coord = AiguesDeReusCoordinator(hass, entry, client)
         assert coord.update_interval == timedelta(hours=DEFAULT_UPDATE_INTERVAL_HOURS)
 
     def test_custom_interval_from_options(self):
@@ -225,5 +232,6 @@ class TestOptionsRespected:
         client.contrato = "9999999"
         hass = MagicMock()
 
-        coord = AiguesDeReusCoordinator(hass, entry, client)
+        with patch("homeassistant.helpers.frame.report_usage"):
+            coord = AiguesDeReusCoordinator(hass, entry, client)
         assert coord.update_interval == timedelta(hours=12)

@@ -10,7 +10,8 @@ with pytest-homeassistant-custom-component (see CI).
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 
@@ -169,19 +170,32 @@ class TestContractStep:
         assert result["reason"] == "no_usable_contracts"
 
 
+@contextmanager
+def _stub_config_entry(options: dict):
+    """In modern HA the OptionsFlow.config_entry property checks self.hass
+    before returning, so we can't just set _config_entry. Patch the property
+    on the class for the duration of the test."""
+    fake_entry = type("E", (), {"options": options})()
+    with patch.object(
+        AiguesDeReusOptionsFlow,
+        "config_entry",
+        new_callable=PropertyMock,
+        return_value=fake_entry,
+    ):
+        yield
+
+
 class TestOptionsFlow:
     @pytest.mark.asyncio
     async def test_options_flow_returns_form(self):
         flow = AiguesDeReusOptionsFlow()
-        # config_entry is a property injected by HA; we shim it
-        flow._config_entry = type("E", (), {"options": {}})()
         flow.async_show_form = lambda **kw: {"type": "form", **kw}
 
-        result = await flow.async_step_init(None)
+        with _stub_config_entry({}):
+            result = await flow.async_step_init(None)
+
         assert result["type"] == "form"
         assert result["step_id"] == "init"
-
-        # Verify the schema enforces the limits
         schema = result["data_schema"].schema
         keys = list(schema.keys())
         assert any(k.schema == CONF_UPDATE_INTERVAL_HOURS for k in keys)
@@ -190,12 +204,12 @@ class TestOptionsFlow:
     @pytest.mark.asyncio
     async def test_options_flow_saves_user_input(self):
         flow = AiguesDeReusOptionsFlow()
-        flow._config_entry = type("E", (), {"options": {}})()
         flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
 
-        result = await flow.async_step_init(
-            {CONF_UPDATE_INTERVAL_HOURS: 8, CONF_BACKFILL_DAYS: 90}
-        )
+        with _stub_config_entry({}):
+            result = await flow.async_step_init(
+                {CONF_UPDATE_INTERVAL_HOURS: 8, CONF_BACKFILL_DAYS: 90}
+            )
 
         assert result["type"] == "create_entry"
         assert result["data"] == {
@@ -206,13 +220,13 @@ class TestOptionsFlow:
     @pytest.mark.asyncio
     async def test_options_flow_uses_existing_options_as_defaults(self):
         flow = AiguesDeReusOptionsFlow()
-        existing = {CONF_UPDATE_INTERVAL_HOURS: 12, CONF_BACKFILL_DAYS: 30}
-        flow._config_entry = type("E", (), {"options": existing})()
         flow.async_show_form = lambda **kw: {"type": "form", **kw}
+        existing = {CONF_UPDATE_INTERVAL_HOURS: 12, CONF_BACKFILL_DAYS: 30}
 
-        result = await flow.async_step_init(None)
+        with _stub_config_entry(existing):
+            result = await flow.async_step_init(None)
+
         schema = result["data_schema"].schema
-        # Default for each Required key matches the saved options
         for k in schema.keys():
             if k.schema == CONF_UPDATE_INTERVAL_HOURS:
                 assert k.default() == 12

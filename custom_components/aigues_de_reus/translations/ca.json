@@ -33,21 +33,52 @@
       "monthly_consumption": { "name": "Consum d'aquest mes" },
       "meter_reading": { "name": "Lectura del comptador" },
       "last_sync": { "name": "Última sincronització" },
-      "last_reading": { "name": "Última lectura" }
+      "last_reading": { "name": "Última lectura" },
+      "daily_cost": { "name": "Cost d'avui" },
+      "monthly_cost": { "name": "Cost d'aquest mes" }
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Opcions d'Aigües de Reus",
-        "description": "Ajusta la freqüència de consulta i el període d'històric a importar.",
+        "description": "Ajusta la freqüència de consulta, el període d'històric i, opcionalment, les tarifes per estimar el cost del consum.",
         "data": {
           "update_interval_hours": "Interval d'actualització (hores)",
-          "backfill_days": "Dies d'històric a importar"
+          "backfill_days": "Dies d'històric a importar",
+          "tariff_enabled": "Activa l'estimació de costos",
+          "billing_period_start": "Data inici del període de facturació (YYYY-MM-DD)",
+          "billing_period_days": "Durada del període de facturació (dies)",
+          "iva_rate": "IVA (fracció, p.ex. 0,10 = 10%)",
+          "water_fixed_eur_per_day": "Aigua — quota fixa (€/dia)",
+          "water_tier1_eur_per_m3": "Aigua — tram 1 (€/m³)",
+          "water_tier1_limit_m3": "Aigua — límit tram 1 (m³, 0 = sense límit)",
+          "water_tier2_eur_per_m3": "Aigua — tram 2 (€/m³, 0 = no aplica)",
+          "water_tier2_limit_m3": "Aigua — límit tram 2 (m³)",
+          "water_tier3_eur_per_m3": "Aigua — tram 3 (€/m³, 0 = no aplica)",
+          "sewer_fixed_eur_per_day": "Claveguera — quota fixa (€/dia)",
+          "sewer_tier1_eur_per_m3": "Claveguera — tram 1 (€/m³)",
+          "sewer_tier1_limit_m3": "Claveguera — límit tram 1 (m³)",
+          "sewer_tier2_eur_per_m3": "Claveguera — tram 2 (€/m³)",
+          "sewer_tier2_limit_m3": "Claveguera — límit tram 2 (m³)",
+          "sewer_tier3_eur_per_m3": "Claveguera — tram 3 (€/m³)",
+          "canon_fixed_eur_per_day": "Cànon de l'aigua — part fixa (€/dia)",
+          "canon_tier1_eur_per_m3": "Cànon — tram 1 (€/m³)",
+          "canon_tier1_limit_m3": "Cànon — límit tram 1 (m³)",
+          "canon_tier2_eur_per_m3": "Cànon — tram 2 (€/m³)",
+          "canon_tier2_limit_m3": "Cànon — límit tram 2 (m³)",
+          "canon_tier3_eur_per_m3": "Cànon — tram 3 (€/m³)"
         },
         "data_description": {
           "update_interval_hours": "Cada quantes hores es consulta el portal (1-24).",
-          "backfill_days": "Quants dies enrere es baixen el primer cop o quan es força un backfill (7-180)."
+          "backfill_days": "Quants dies enrere es baixen el primer cop o quan es força un backfill (7-180).",
+          "tariff_enabled": "Si està desactivat, els sensors de cost queden indisponibles.",
+          "billing_period_start": "Data d'inici del cicle actual. Es va avançant automàticament quan s'acaba.",
+          "billing_period_days": "Durada típica del cicle (Reus: 60).",
+          "iva_rate": "Aplica només sobre aigua i claveguera. El cànon n'està exempt.",
+          "water_tier1_limit_m3": "Si poses 0, el preu del tram 1 s'aplica a tot el consum.",
+          "water_tier2_eur_per_m3": "Deixa-ho a 0 si la teva factura només té un tram.",
+          "canon_tier1_limit_m3": "Llindar en m³ totals del període (no per L/persona/dia)."
         }
       }
     }

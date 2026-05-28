@@ -14,6 +14,8 @@ Per cada contracte configurat es creen aquests sensors:
 | Consum d'avui | `water` | `total_increasing` | m³ | informatiu |
 | Consum d'aquest mes | `water` | `total_increasing` | m³ | informatiu |
 | Lectura del comptador | `water` | `total_increasing` | m³ | _opcional_ |
+| Cost d'avui | `monetary` | `total` | EUR | només si actives tarifes |
+| Cost d'aquest mes | `monetary` | `total_increasing` | EUR | només si actives tarifes |
 | Última sincronització | `timestamp` | — | — | diagnòstic |
 | Última lectura | `timestamp` | — | — | diagnòstic |
 
@@ -53,6 +55,28 @@ Des de **Configuració → Dispositius i serveis → Aigües de Reus → Configu
 ## Servei `force_backfill`
 
 Re-importa les estadístiques horàries del període configurat. Útil si vols ampliar el rang històric o has perdut dades. **Eines de desenvolupament → Serveis → `aigues_de_reus.force_backfill`**.
+
+## Estimació de costos (€)
+
+Si vols veure el **cost** del consum d'aigua a més dels m³, activa l'estimació de tarifes des de **Configuració → Aigües de Reus → Configurar**:
+
+1. Marca *Activa l'estimació de costos*.
+2. Indica la **data d'inici del període de facturació** actual (la trobes a la teva última factura, p.ex. `2026-02-11`) i la **durada típica del cicle** (Reus: 60 dies). El cicle s'auto-avança quan acaba.
+3. Introdueix les **tarifes** de la teva factura. Els valors per defecte són els vigents a Reus el 2026 (eBOPT 30.12.2025 + DOGC 9632 / Llei 3/2026).
+
+| Concepte | Defaults 2026 |
+|---|---|
+| Aigua — fixa €/dia · tram 1 €/m³ | 0,2640 · 0,4384 |
+| Claveguera — fixa €/dia · tram 1 €/m³ | 0,1340 · 0,0755 |
+| Cànon — fixa €/dia · tram 1 €/m³ | 0,0329 · 0,5232 |
+| IVA | 10% (només aigua + claveguera; cànon exempt) |
+
+Hi ha 3 trams disponibles per cada concepte. Si la teva factura només en té un, deixa els camps `tram 2/3` a `0`. Per modelar trams: `límit tram 1 = X m³` i `tram 2 €/m³ = Y` aplica el preu Y a partir d'X m³ acumulats al període. **Cas pràctic:** la majoria d'habitatges domèstics només tenen un tram, així que pots deixar-ho tot per defecte.
+
+> ⚠️ Limitacions del model:
+> - El cànon real té trams per **L/persona/dia** — aquí els configures en m³ totals del període per simplicitat.
+> - No detecta canvis de llei a meitat de període (com el del DOGC 9632 a finals de març 2026). Quan canviïn les tarifes, actualitza-les manualment des d'aquesta mateixa pantalla.
+> - No s'apliquen bonificacions automàtiques (família nombrosa, etc.). Pots aproximar-ho baixant els preus a mà.
 
 ## Limitacions actuals
 

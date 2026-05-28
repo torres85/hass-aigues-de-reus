@@ -88,6 +88,26 @@ SENSORS: tuple[AdrSensorDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.last_hourly_at,
     ),
+    AdrSensorDescription(
+        key="daily_cost",
+        translation_key="daily_cost",
+        name="Cost d'avui",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        native_unit_of_measurement="EUR",
+        suggested_display_precision=2,
+        value_fn=lambda d: d.today_cost_eur,
+    ),
+    AdrSensorDescription(
+        key="monthly_cost",
+        translation_key="monthly_cost",
+        name="Cost d'aquest mes",
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        native_unit_of_measurement="EUR",
+        suggested_display_precision=2,
+        value_fn=lambda d: d.month_cost_eur,
+    ),
 )
 
 

@@ -16,15 +16,59 @@ from homeassistant.core import callback
 from .api import AiguesDeReusClient, AuthError
 from .const import (
     CONF_BACKFILL_DAYS,
+    CONF_BILLING_PERIOD_DAYS,
+    CONF_BILLING_PERIOD_START,
+    CONF_CANON_FIXED_EUR_PER_DAY,
+    CONF_CANON_TIER1_EUR_PER_M3,
+    CONF_CANON_TIER1_LIMIT_M3,
+    CONF_CANON_TIER2_EUR_PER_M3,
+    CONF_CANON_TIER2_LIMIT_M3,
+    CONF_CANON_TIER3_EUR_PER_M3,
     CONF_CODIGO_CLIENTE,
     CONF_CONTADOR,
     CONF_CONTRATO,
     CONF_DIRECCION,
+    CONF_IVA_RATE,
     CONF_NIF,
     CONF_PASSWORD,
+    CONF_SEWER_FIXED_EUR_PER_DAY,
+    CONF_SEWER_TIER1_EUR_PER_M3,
+    CONF_SEWER_TIER1_LIMIT_M3,
+    CONF_SEWER_TIER2_EUR_PER_M3,
+    CONF_SEWER_TIER2_LIMIT_M3,
+    CONF_SEWER_TIER3_EUR_PER_M3,
+    CONF_TARIFF_ENABLED,
     CONF_UPDATE_INTERVAL_HOURS,
+    CONF_WATER_FIXED_EUR_PER_DAY,
+    CONF_WATER_TIER1_EUR_PER_M3,
+    CONF_WATER_TIER1_LIMIT_M3,
+    CONF_WATER_TIER2_EUR_PER_M3,
+    CONF_WATER_TIER2_LIMIT_M3,
+    CONF_WATER_TIER3_EUR_PER_M3,
     DEFAULT_BACKFILL_DAYS,
+    DEFAULT_BILLING_PERIOD_DAYS,
+    DEFAULT_BILLING_PERIOD_START,
+    DEFAULT_CANON_FIXED_EUR_PER_DAY,
+    DEFAULT_CANON_TIER1_EUR_PER_M3,
+    DEFAULT_CANON_TIER1_LIMIT_M3,
+    DEFAULT_CANON_TIER2_EUR_PER_M3,
+    DEFAULT_CANON_TIER2_LIMIT_M3,
+    DEFAULT_CANON_TIER3_EUR_PER_M3,
+    DEFAULT_IVA_RATE,
+    DEFAULT_SEWER_FIXED_EUR_PER_DAY,
+    DEFAULT_SEWER_TIER1_EUR_PER_M3,
+    DEFAULT_SEWER_TIER1_LIMIT_M3,
+    DEFAULT_SEWER_TIER2_EUR_PER_M3,
+    DEFAULT_SEWER_TIER2_LIMIT_M3,
+    DEFAULT_SEWER_TIER3_EUR_PER_M3,
+    DEFAULT_TARIFF_ENABLED,
     DEFAULT_UPDATE_INTERVAL_HOURS,
+    DEFAULT_WATER_FIXED_EUR_PER_DAY,
+    DEFAULT_WATER_TIER1_EUR_PER_M3,
+    DEFAULT_WATER_TIER1_LIMIT_M3,
+    DEFAULT_WATER_TIER2_EUR_PER_M3,
+    DEFAULT_WATER_TIER2_LIMIT_M3,
+    DEFAULT_WATER_TIER3_EUR_PER_M3,
     DOMAIN,
     MAX_BACKFILL_DAYS,
     MAX_UPDATE_INTERVAL_HOURS,
@@ -129,8 +173,26 @@ class AiguesDeReusConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
+def _validate_iso_date_or_empty(value: Any) -> str:
+    """Voluptuous validator: accept "" or a YYYY-MM-DD string."""
+    if value is None or value == "":
+        return ""
+    if not isinstance(value, str):
+        raise vol.Invalid("Has de ser una data en format YYYY-MM-DD")
+    try:
+        from datetime import date as _date
+
+        _date.fromisoformat(value)
+    except ValueError as err:
+        raise vol.Invalid("Format de data no vàlid (esperat YYYY-MM-DD)") from err
+    return value
+
+
+_NON_NEG_FLOAT = vol.All(vol.Coerce(float), vol.Range(min=0))
+
+
 class AiguesDeReusOptionsFlow(OptionsFlow):
-    """Allow tweaking poll cadence and backfill window."""
+    """Allow tweaking poll cadence, backfill window and tariff/cost setup."""
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -139,11 +201,15 @@ class AiguesDeReusOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         current = self.config_entry.options
+
+        def _opt(key: str, default: Any) -> Any:
+            return current.get(key, default)
+
         schema = vol.Schema(
             {
                 vol.Required(
                     CONF_UPDATE_INTERVAL_HOURS,
-                    default=current.get(
+                    default=_opt(
                         CONF_UPDATE_INTERVAL_HOURS, DEFAULT_UPDATE_INTERVAL_HOURS
                     ),
                 ): vol.All(
@@ -155,11 +221,155 @@ class AiguesDeReusOptionsFlow(OptionsFlow):
                 ),
                 vol.Required(
                     CONF_BACKFILL_DAYS,
-                    default=current.get(CONF_BACKFILL_DAYS, DEFAULT_BACKFILL_DAYS),
+                    default=_opt(CONF_BACKFILL_DAYS, DEFAULT_BACKFILL_DAYS),
                 ): vol.All(
                     vol.Coerce(int),
                     vol.Range(min=MIN_BACKFILL_DAYS, max=MAX_BACKFILL_DAYS),
                 ),
+                # --- Cost / tariff configuration ---
+                vol.Required(
+                    CONF_TARIFF_ENABLED,
+                    default=_opt(CONF_TARIFF_ENABLED, DEFAULT_TARIFF_ENABLED),
+                ): bool,
+                vol.Required(
+                    CONF_BILLING_PERIOD_START,
+                    default=_opt(
+                        CONF_BILLING_PERIOD_START, DEFAULT_BILLING_PERIOD_START
+                    ),
+                ): _validate_iso_date_or_empty,
+                vol.Required(
+                    CONF_BILLING_PERIOD_DAYS,
+                    default=_opt(
+                        CONF_BILLING_PERIOD_DAYS, DEFAULT_BILLING_PERIOD_DAYS
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=365)),
+                vol.Required(
+                    CONF_IVA_RATE,
+                    default=_opt(CONF_IVA_RATE, DEFAULT_IVA_RATE),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0, max=1)),
+                # Water
+                vol.Required(
+                    CONF_WATER_FIXED_EUR_PER_DAY,
+                    default=_opt(
+                        CONF_WATER_FIXED_EUR_PER_DAY,
+                        DEFAULT_WATER_FIXED_EUR_PER_DAY,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_WATER_TIER1_EUR_PER_M3,
+                    default=_opt(
+                        CONF_WATER_TIER1_EUR_PER_M3,
+                        DEFAULT_WATER_TIER1_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_WATER_TIER1_LIMIT_M3,
+                    default=_opt(
+                        CONF_WATER_TIER1_LIMIT_M3, DEFAULT_WATER_TIER1_LIMIT_M3
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_WATER_TIER2_EUR_PER_M3,
+                    default=_opt(
+                        CONF_WATER_TIER2_EUR_PER_M3,
+                        DEFAULT_WATER_TIER2_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_WATER_TIER2_LIMIT_M3,
+                    default=_opt(
+                        CONF_WATER_TIER2_LIMIT_M3, DEFAULT_WATER_TIER2_LIMIT_M3
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_WATER_TIER3_EUR_PER_M3,
+                    default=_opt(
+                        CONF_WATER_TIER3_EUR_PER_M3,
+                        DEFAULT_WATER_TIER3_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                # Sewer
+                vol.Required(
+                    CONF_SEWER_FIXED_EUR_PER_DAY,
+                    default=_opt(
+                        CONF_SEWER_FIXED_EUR_PER_DAY,
+                        DEFAULT_SEWER_FIXED_EUR_PER_DAY,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_SEWER_TIER1_EUR_PER_M3,
+                    default=_opt(
+                        CONF_SEWER_TIER1_EUR_PER_M3,
+                        DEFAULT_SEWER_TIER1_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_SEWER_TIER1_LIMIT_M3,
+                    default=_opt(
+                        CONF_SEWER_TIER1_LIMIT_M3, DEFAULT_SEWER_TIER1_LIMIT_M3
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_SEWER_TIER2_EUR_PER_M3,
+                    default=_opt(
+                        CONF_SEWER_TIER2_EUR_PER_M3,
+                        DEFAULT_SEWER_TIER2_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_SEWER_TIER2_LIMIT_M3,
+                    default=_opt(
+                        CONF_SEWER_TIER2_LIMIT_M3, DEFAULT_SEWER_TIER2_LIMIT_M3
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_SEWER_TIER3_EUR_PER_M3,
+                    default=_opt(
+                        CONF_SEWER_TIER3_EUR_PER_M3,
+                        DEFAULT_SEWER_TIER3_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                # Cànon
+                vol.Required(
+                    CONF_CANON_FIXED_EUR_PER_DAY,
+                    default=_opt(
+                        CONF_CANON_FIXED_EUR_PER_DAY,
+                        DEFAULT_CANON_FIXED_EUR_PER_DAY,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_CANON_TIER1_EUR_PER_M3,
+                    default=_opt(
+                        CONF_CANON_TIER1_EUR_PER_M3,
+                        DEFAULT_CANON_TIER1_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_CANON_TIER1_LIMIT_M3,
+                    default=_opt(
+                        CONF_CANON_TIER1_LIMIT_M3, DEFAULT_CANON_TIER1_LIMIT_M3
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_CANON_TIER2_EUR_PER_M3,
+                    default=_opt(
+                        CONF_CANON_TIER2_EUR_PER_M3,
+                        DEFAULT_CANON_TIER2_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_CANON_TIER2_LIMIT_M3,
+                    default=_opt(
+                        CONF_CANON_TIER2_LIMIT_M3, DEFAULT_CANON_TIER2_LIMIT_M3
+                    ),
+                ): _NON_NEG_FLOAT,
+                vol.Required(
+                    CONF_CANON_TIER3_EUR_PER_M3,
+                    default=_opt(
+                        CONF_CANON_TIER3_EUR_PER_M3,
+                        DEFAULT_CANON_TIER3_EUR_PER_M3,
+                    ),
+                ): _NON_NEG_FLOAT,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema)

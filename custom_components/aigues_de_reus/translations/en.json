@@ -33,21 +33,52 @@
       "monthly_consumption": { "name": "This month's consumption" },
       "meter_reading": { "name": "Meter reading" },
       "last_sync": { "name": "Last sync" },
-      "last_reading": { "name": "Last reading" }
+      "last_reading": { "name": "Last reading" },
+      "daily_cost": { "name": "Today's cost" },
+      "monthly_cost": { "name": "This month's cost" }
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Aigües de Reus options",
-        "description": "Adjust polling frequency and the backfill window.",
+        "description": "Adjust polling frequency, backfill window and (optionally) tariffs to estimate cost.",
         "data": {
           "update_interval_hours": "Update interval (hours)",
-          "backfill_days": "Backfill window (days)"
+          "backfill_days": "Backfill window (days)",
+          "tariff_enabled": "Enable cost estimation",
+          "billing_period_start": "Billing period start (YYYY-MM-DD)",
+          "billing_period_days": "Billing period length (days)",
+          "iva_rate": "VAT (fraction, e.g. 0.10 = 10%)",
+          "water_fixed_eur_per_day": "Water — fixed fee (€/day)",
+          "water_tier1_eur_per_m3": "Water — tier 1 (€/m³)",
+          "water_tier1_limit_m3": "Water — tier 1 limit (m³, 0 = no limit)",
+          "water_tier2_eur_per_m3": "Water — tier 2 (€/m³, 0 = unused)",
+          "water_tier2_limit_m3": "Water — tier 2 limit (m³)",
+          "water_tier3_eur_per_m3": "Water — tier 3 (€/m³, 0 = unused)",
+          "sewer_fixed_eur_per_day": "Sewer — fixed fee (€/day)",
+          "sewer_tier1_eur_per_m3": "Sewer — tier 1 (€/m³)",
+          "sewer_tier1_limit_m3": "Sewer — tier 1 limit (m³)",
+          "sewer_tier2_eur_per_m3": "Sewer — tier 2 (€/m³)",
+          "sewer_tier2_limit_m3": "Sewer — tier 2 limit (m³)",
+          "sewer_tier3_eur_per_m3": "Sewer — tier 3 (€/m³)",
+          "canon_fixed_eur_per_day": "Cànon (water levy) — fixed (€/day)",
+          "canon_tier1_eur_per_m3": "Cànon — tier 1 (€/m³)",
+          "canon_tier1_limit_m3": "Cànon — tier 1 limit (m³)",
+          "canon_tier2_eur_per_m3": "Cànon — tier 2 (€/m³)",
+          "canon_tier2_limit_m3": "Cànon — tier 2 limit (m³)",
+          "canon_tier3_eur_per_m3": "Cànon — tier 3 (€/m³)"
         },
         "data_description": {
           "update_interval_hours": "How often the portal is polled (1-24 hours).",
-          "backfill_days": "How many days are fetched on first run or when a backfill is forced (7-180)."
+          "backfill_days": "How many days are fetched on first run or when a backfill is forced (7-180).",
+          "tariff_enabled": "When disabled, the cost sensors stay unavailable.",
+          "billing_period_start": "Start date of the current cycle. Auto-rolls forward when the cycle ends.",
+          "billing_period_days": "Typical cycle length (Reus: 60).",
+          "iva_rate": "Applies to water + sewer only. The cànon is VAT-exempt.",
+          "water_tier1_limit_m3": "Set to 0 to apply the tier 1 price to all consumption.",
+          "water_tier2_eur_per_m3": "Leave 0 if your invoice has only one tier.",
+          "canon_tier1_limit_m3": "Threshold in total m³ for the period (not per L/person/day)."
         }
       }
     }

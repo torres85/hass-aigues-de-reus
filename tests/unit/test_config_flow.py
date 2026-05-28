@@ -232,3 +232,70 @@ class TestOptionsFlow:
                 assert k.default() == 12
             elif k.schema == CONF_BACKFILL_DAYS:
                 assert k.default() == 30
+
+    @pytest.mark.asyncio
+    async def test_options_form_includes_tariff_fields(self):
+        from custom_components.aigues_de_reus.const import (
+            CONF_BILLING_PERIOD_START,
+            CONF_CANON_TIER1_EUR_PER_M3,
+            CONF_IVA_RATE,
+            CONF_TARIFF_ENABLED,
+            CONF_WATER_FIXED_EUR_PER_DAY,
+        )
+        flow = AiguesDeReusOptionsFlow()
+        flow.async_show_form = lambda **kw: {"type": "form", **kw}
+        with _stub_config_entry({}):
+            result = await flow.async_step_init(None)
+        keys = {k.schema for k in result["data_schema"].schema.keys()}
+        # Sample the new fields
+        assert CONF_TARIFF_ENABLED in keys
+        assert CONF_BILLING_PERIOD_START in keys
+        assert CONF_IVA_RATE in keys
+        assert CONF_WATER_FIXED_EUR_PER_DAY in keys
+        assert CONF_CANON_TIER1_EUR_PER_M3 in keys
+
+    @pytest.mark.asyncio
+    async def test_options_persists_tariff_values(self):
+        from custom_components.aigues_de_reus.const import (
+            CONF_BILLING_PERIOD_DAYS,
+            CONF_BILLING_PERIOD_START,
+            CONF_CANON_TIER1_EUR_PER_M3,
+            CONF_IVA_RATE,
+            CONF_TARIFF_ENABLED,
+            CONF_WATER_FIXED_EUR_PER_DAY,
+            CONF_WATER_TIER1_EUR_PER_M3,
+        )
+        flow = AiguesDeReusOptionsFlow()
+        flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
+        payload = {
+            CONF_UPDATE_INTERVAL_HOURS: 4,
+            CONF_BACKFILL_DAYS: 60,
+            CONF_TARIFF_ENABLED: True,
+            CONF_BILLING_PERIOD_START: "2026-02-11",
+            CONF_BILLING_PERIOD_DAYS: 60,
+            CONF_IVA_RATE: 0.10,
+            CONF_WATER_FIXED_EUR_PER_DAY: 0.2640,
+            CONF_WATER_TIER1_EUR_PER_M3: 0.4384,
+            CONF_CANON_TIER1_EUR_PER_M3: 0.5232,
+        }
+        with _stub_config_entry({}):
+            result = await flow.async_step_init(payload)
+        assert result["type"] == "create_entry"
+        assert result["data"] == payload
+
+    @pytest.mark.asyncio
+    async def test_invalid_period_start_raises(self):
+        from custom_components.aigues_de_reus.const import CONF_BILLING_PERIOD_START
+        import voluptuous as vol
+
+        flow = AiguesDeReusOptionsFlow()
+        flow.async_show_form = lambda **kw: {"type": "form", **kw}
+        with _stub_config_entry({}):
+            result = await flow.async_step_init(None)
+        schema = result["data_schema"]
+        with pytest.raises(vol.Invalid):
+            schema({
+                CONF_UPDATE_INTERVAL_HOURS: 4,
+                CONF_BACKFILL_DAYS: 60,
+                CONF_BILLING_PERIOD_START: "not-a-date",
+            })

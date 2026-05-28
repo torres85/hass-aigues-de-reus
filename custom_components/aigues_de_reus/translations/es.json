@@ -33,21 +33,52 @@
       "monthly_consumption": { "name": "Consumo de este mes" },
       "meter_reading": { "name": "Lectura del contador" },
       "last_sync": { "name": "Última sincronización" },
-      "last_reading": { "name": "Última lectura" }
+      "last_reading": { "name": "Última lectura" },
+      "daily_cost": { "name": "Coste de hoy" },
+      "monthly_cost": { "name": "Coste de este mes" }
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Opciones de Aigües de Reus",
-        "description": "Ajusta la frecuencia de consulta y el periodo de histórico a importar.",
+        "description": "Ajusta la frecuencia de consulta, el periodo de histórico y, opcionalmente, las tarifas para estimar el coste.",
         "data": {
           "update_interval_hours": "Intervalo de actualización (horas)",
-          "backfill_days": "Días de histórico a importar"
+          "backfill_days": "Días de histórico a importar",
+          "tariff_enabled": "Activar estimación de costes",
+          "billing_period_start": "Inicio del periodo de facturación (YYYY-MM-DD)",
+          "billing_period_days": "Duración del periodo de facturación (días)",
+          "iva_rate": "IVA (fracción, p.ej. 0,10 = 10%)",
+          "water_fixed_eur_per_day": "Agua — cuota fija (€/día)",
+          "water_tier1_eur_per_m3": "Agua — tramo 1 (€/m³)",
+          "water_tier1_limit_m3": "Agua — límite tramo 1 (m³, 0 = sin límite)",
+          "water_tier2_eur_per_m3": "Agua — tramo 2 (€/m³, 0 = no aplica)",
+          "water_tier2_limit_m3": "Agua — límite tramo 2 (m³)",
+          "water_tier3_eur_per_m3": "Agua — tramo 3 (€/m³, 0 = no aplica)",
+          "sewer_fixed_eur_per_day": "Alcantarillado — cuota fija (€/día)",
+          "sewer_tier1_eur_per_m3": "Alcantarillado — tramo 1 (€/m³)",
+          "sewer_tier1_limit_m3": "Alcantarillado — límite tramo 1 (m³)",
+          "sewer_tier2_eur_per_m3": "Alcantarillado — tramo 2 (€/m³)",
+          "sewer_tier2_limit_m3": "Alcantarillado — límite tramo 2 (m³)",
+          "sewer_tier3_eur_per_m3": "Alcantarillado — tramo 3 (€/m³)",
+          "canon_fixed_eur_per_day": "Canon del agua — parte fija (€/día)",
+          "canon_tier1_eur_per_m3": "Canon — tramo 1 (€/m³)",
+          "canon_tier1_limit_m3": "Canon — límite tramo 1 (m³)",
+          "canon_tier2_eur_per_m3": "Canon — tramo 2 (€/m³)",
+          "canon_tier2_limit_m3": "Canon — límite tramo 2 (m³)",
+          "canon_tier3_eur_per_m3": "Canon — tramo 3 (€/m³)"
         },
         "data_description": {
           "update_interval_hours": "Cada cuántas horas se consulta el portal (1-24).",
-          "backfill_days": "Cuántos días atrás se descargan la primera vez o al forzar un backfill (7-180)."
+          "backfill_days": "Cuántos días atrás se descargan la primera vez o al forzar un backfill (7-180).",
+          "tariff_enabled": "Si está desactivado, los sensores de coste quedan no disponibles.",
+          "billing_period_start": "Fecha de inicio del ciclo actual. Avanza automáticamente al terminar.",
+          "billing_period_days": "Duración típica del ciclo (Reus: 60).",
+          "iva_rate": "Solo aplica a agua y alcantarillado. El canon está exento.",
+          "water_tier1_limit_m3": "Si pones 0, el precio del tramo 1 se aplica a todo el consumo.",
+          "water_tier2_eur_per_m3": "Déjalo a 0 si tu factura sólo tiene un tramo.",
+          "canon_tier1_limit_m3": "Umbral en m³ totales del periodo (no por L/persona/día)."
         }
       }
     }

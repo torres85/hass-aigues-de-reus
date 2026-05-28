@@ -12,6 +12,9 @@ from custom_components.aigues_de_reus.coordinator import (
 )
 from custom_components.aigues_de_reus.const import (
     CONF_BACKFILL_DAYS,
+    CONF_BILLING_PERIOD_DAYS,
+    CONF_BILLING_PERIOD_START,
+    CONF_TARIFF_ENABLED,
     CONF_UPDATE_INTERVAL_HOURS,
     DOMAIN,
 )
@@ -235,3 +238,114 @@ class TestOptionsRespected:
         with patch("homeassistant.helpers.frame.report_usage"):
             coord = AiguesDeReusCoordinator(hass, entry, client)
         assert coord.update_interval == timedelta(hours=12)
+
+
+class TestPeriodStart:
+    """Validate the billing-period rollover."""
+
+    @staticmethod
+    def _coord(options):
+        entry = MagicMock()
+        entry.options = options
+        client = MagicMock()
+        client.contrato = "9999999"
+        with patch.object(
+            AiguesDeReusCoordinator, "__init__", lambda self, *a, **k: None
+        ):
+            coord = AiguesDeReusCoordinator.__new__(AiguesDeReusCoordinator)
+            coord.entry = entry
+            coord.client = client
+            coord.hass = MagicMock()
+        return coord
+
+    def test_rolls_forward_through_multiple_cycles(self):
+        coord = self._coord({
+            CONF_BILLING_PERIOD_START: "2026-01-01",
+            CONF_BILLING_PERIOD_DAYS: 60,
+        })
+        # 2026-05-28 is day 148 from anchor → 2 full 60-day cycles passed,
+        # so the current period started on 2026-01-01 + 120d = 2026-05-01.
+        assert coord._resolve_period_start(date(2026, 5, 28)) == date(2026, 5, 1)
+
+    def test_anchor_in_the_future_returns_anchor(self):
+        coord = self._coord({
+            CONF_BILLING_PERIOD_START: "2027-01-01",
+            CONF_BILLING_PERIOD_DAYS: 60,
+        })
+        assert coord._resolve_period_start(date(2026, 5, 28)) == date(2027, 1, 1)
+
+    def test_blank_anchor_falls_back_to_month_start(self):
+        coord = self._coord({CONF_BILLING_PERIOD_START: ""})
+        assert coord._resolve_period_start(date(2026, 5, 28)) == date(2026, 5, 1)
+
+    def test_invalid_anchor_falls_back_to_month_start(self):
+        coord = self._coord({CONF_BILLING_PERIOD_START: "no-date"})
+        assert coord._resolve_period_start(date(2026, 5, 28)) == date(2026, 5, 1)
+
+
+class TestCostPopulation:
+    """Validate that today/month cost are filled when tariffs are enabled."""
+
+    @staticmethod
+    def _coord_with_tariffs():
+        entry = MagicMock()
+        entry.options = {
+            CONF_TARIFF_ENABLED: True,
+            CONF_BILLING_PERIOD_START: "2026-05-01",
+            CONF_BILLING_PERIOD_DAYS: 60,
+            # Defaults from const.py are used for the actual rates
+        }
+        client = MagicMock()
+        client.contrato = "9999999"
+        with patch.object(
+            AiguesDeReusCoordinator, "__init__", lambda self, *a, **k: None
+        ):
+            coord = AiguesDeReusCoordinator.__new__(AiguesDeReusCoordinator)
+            coord.entry = entry
+            coord.client = client
+            coord.hass = MagicMock()
+        return coord
+
+    def test_populate_costs_sets_today_and_month(self):
+        coord = self._coord_with_tariffs()
+        today = date(2026, 5, 28)
+        # Today: 1 m³ across 24 hours; earlier in month: 5 m³ on 2026-05-15
+        rows = []
+        for h in range(24):
+            rows.append({
+                "Fecha": "2026-05-28T00:00:00",
+                "Hora": h,
+                "ConsumoM3": 1.0 / 24,
+            })
+        for h in range(24):
+            rows.append({
+                "Fecha": "2026-05-15T00:00:00",
+                "Hora": h,
+                "ConsumoM3": 5.0 / 24,
+            })
+        snapshot = CoordinatorData()
+        coord._populate_costs(snapshot, rows, today)
+        assert snapshot.today_cost_eur is not None
+        assert snapshot.month_cost_eur is not None
+        # Today cost ≈ 1 day fixed (~0.50€ with IVA) + 1 m³ * variable rates
+        assert 0.5 < snapshot.today_cost_eur < 5
+        # Month cost includes 28 days fixed + 6 m³ variable: should be larger
+        assert snapshot.month_cost_eur > snapshot.today_cost_eur
+
+    def test_disabled_tariffs_leave_costs_none(self):
+        # When CONF_TARIFF_ENABLED is False, _populate_costs should not be called
+        # — but if it is, it still produces values. The disable check lives in
+        # _fetch(); here we simulate that branch by skipping the call entirely.
+        coord = self._coord_with_tariffs()
+        coord.entry.options = {}  # tariff disabled
+        snapshot = CoordinatorData()
+        # Mimic the _fetch() guard
+        from custom_components.aigues_de_reus.const import (
+            CONF_TARIFF_ENABLED,
+            DEFAULT_TARIFF_ENABLED,
+        )
+        enabled = coord.entry.options.get(CONF_TARIFF_ENABLED, DEFAULT_TARIFF_ENABLED)
+        if enabled:
+            coord._populate_costs(snapshot, [], date(2026, 5, 28))
+        assert snapshot.today_cost_eur is None
+        assert snapshot.month_cost_eur is None

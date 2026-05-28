@@ -22,12 +22,18 @@ from homeassistant.util import dt as dt_util
 from .api import AiguesDeReusClient, AiguesDeReusError, AuthError
 from .const import (
     CONF_BACKFILL_DAYS,
+    CONF_BILLING_PERIOD_DAYS,
+    CONF_BILLING_PERIOD_START,
+    CONF_TARIFF_ENABLED,
     CONF_UPDATE_INTERVAL_HOURS,
     DEFAULT_BACKFILL_DAYS,
+    DEFAULT_BILLING_PERIOD_DAYS,
+    DEFAULT_TARIFF_ENABLED,
     DEFAULT_UPDATE_INTERVAL_HOURS,
     DOMAIN,
     HISTORICAL_DAYS,
 )
+from .tariff import CostBreakdown, TariffConfig, calculate_cost
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +49,8 @@ class CoordinatorData:
     last_meter_reading: float | None = None
     last_meter_reading_at: datetime | None = None
     last_sync: datetime | None = None
+    today_cost_eur: float | None = None
+    month_cost_eur: float | None = None
     raw_hourly: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -197,8 +205,118 @@ class AiguesDeReusCoordinator(DataUpdateCoordinator[CoordinatorData]):
             snapshot.last_hourly_at = self._row_datetime(row)
             break
 
+        if self.entry.options.get(CONF_TARIFF_ENABLED, DEFAULT_TARIFF_ENABLED):
+            self._populate_costs(snapshot, hourly_rows, today)
+
         snapshot.last_sync = dt_util.utcnow()
         return snapshot
+
+    def _populate_costs(
+        self,
+        snapshot: CoordinatorData,
+        hourly_rows: list[dict[str, Any]],
+        today: date,
+    ) -> None:
+        """Compute today/month cost in € from the same rows used for stats.
+
+        - Variable cost is summed by walking hourly rows in chronological
+          order with a running m³ counter scoped to the billing period, so
+          tier crossings are correct.
+        - Fixed quotas are prorated per calendar day, applied once per day
+          covered (1 day for "today", N days for "this month so far").
+        """
+        config = TariffConfig.from_options(self.entry.options)
+        period_start = self._resolve_period_start(today)
+
+        # Daily m³ totals (skipping null hours) and per-day variable cost
+        daily_m3: dict[date, float] = {}
+        daily_var_cost: dict[date, CostBreakdown] = {}
+        cum_m3 = 0.0
+        sorted_rows = sorted(
+            (r for r in hourly_rows if r.get("ConsumoM3") is not None),
+            key=lambda r: (
+                AiguesDeReusCoordinator._row_date(r) or date.min,
+                int(r.get("Hora") or 0),
+            ),
+        )
+        for row in sorted_rows:
+            row_date = AiguesDeReusCoordinator._row_date(row)
+            if row_date is None or row_date < period_start:
+                continue
+            m3 = float(row["ConsumoM3"])
+            if m3 <= 0:
+                continue
+            slice_cost = calculate_cost(
+                m3=m3,
+                days=0,
+                config=config,
+                cum_m3_before=cum_m3,
+                include_fixed=False,
+            )
+            cum_m3 += m3
+            daily_m3[row_date] = daily_m3.get(row_date, 0.0) + m3
+            agg = daily_var_cost.get(row_date)
+            if agg is None:
+                daily_var_cost[row_date] = CostBreakdown(
+                    water=slice_cost.water,
+                    sewer=slice_cost.sewer,
+                    canon=slice_cost.canon,
+                    iva=slice_cost.iva,
+                )
+            else:
+                agg.water += slice_cost.water
+                agg.sewer += slice_cost.sewer
+                agg.canon += slice_cost.canon
+                agg.iva += slice_cost.iva
+
+        fixed_one_day = calculate_cost(
+            m3=0, days=1, config=config, include_fixed=True
+        ).total
+
+        # Today: 1 day of fixed + variable cost for today's rows
+        today_var = daily_var_cost.get(today)
+        if today_var is not None or today in daily_m3:
+            today_var = today_var or CostBreakdown()
+            snapshot.today_cost_eur = round(today_var.total + fixed_one_day, 4)
+
+        # This calendar month so far: sum every day from day 1..today.day
+        month_total = 0.0
+        any_month_data = False
+        for d, agg in daily_var_cost.items():
+            if d.year == today.year and d.month == today.month:
+                month_total += agg.total
+                any_month_data = True
+        # Fixed quota for every elapsed day of this month (regardless of data)
+        month_total += fixed_one_day * today.day
+        if any_month_data or today.day > 0:
+            snapshot.month_cost_eur = round(month_total, 4)
+
+    def _resolve_period_start(self, today: date) -> date:
+        """Return the start date of the current billing cycle.
+
+        Anchored on a user-supplied date and a length in days; rolls forward
+        if today is past anchor + length. If no anchor is configured, falls
+        back to the first day of the current calendar month so the model
+        still works (just less accurate for tier carry-over).
+        """
+        anchor_str = self.entry.options.get(CONF_BILLING_PERIOD_START, "")
+        length = int(
+            self.entry.options.get(
+                CONF_BILLING_PERIOD_DAYS, DEFAULT_BILLING_PERIOD_DAYS
+            )
+        )
+        if not anchor_str:
+            return date(today.year, today.month, 1)
+        try:
+            anchor = date.fromisoformat(anchor_str)
+        except ValueError:
+            return date(today.year, today.month, 1)
+        if length <= 0:
+            return anchor
+        start = anchor
+        while start + timedelta(days=length) <= today:
+            start = start + timedelta(days=length)
+        return start
 
     @staticmethod
     def _row_date(row: dict[str, Any]) -> date | None:

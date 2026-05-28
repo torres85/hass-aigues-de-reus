@@ -39,6 +39,9 @@
     }
   },
   "options": {
+    "error": {
+      "invalid_date": "Format de data no vàlid. Utilitza YYYY-MM-DD o deixa-ho en blanc."
+    },
     "step": {
       "init": {
         "title": "Opcions d'Aigües de Reus",

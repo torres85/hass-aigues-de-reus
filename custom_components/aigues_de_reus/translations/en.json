@@ -39,6 +39,9 @@
     }
   },
   "options": {
+    "error": {
+      "invalid_date": "Invalid date format. Use YYYY-MM-DD or leave it blank."
+    },
     "step": {
       "init": {
         "title": "Aigües de Reus options",

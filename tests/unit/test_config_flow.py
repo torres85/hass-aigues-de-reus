@@ -203,19 +203,21 @@ class TestOptionsFlow:
 
     @pytest.mark.asyncio
     async def test_options_flow_saves_user_input(self):
+        from custom_components.aigues_de_reus.const import CONF_BILLING_PERIOD_START
+
         flow = AiguesDeReusOptionsFlow()
         flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
 
-        with _stub_config_entry({}):
-            result = await flow.async_step_init(
-                {CONF_UPDATE_INTERVAL_HOURS: 8, CONF_BACKFILL_DAYS: 90}
-            )
-
-        assert result["type"] == "create_entry"
-        assert result["data"] == {
+        payload = {
             CONF_UPDATE_INTERVAL_HOURS: 8,
             CONF_BACKFILL_DAYS: 90,
+            CONF_BILLING_PERIOD_START: "",
         }
+        with _stub_config_entry({}):
+            result = await flow.async_step_init(payload)
+
+        assert result["type"] == "create_entry"
+        assert result["data"] == payload
 
     @pytest.mark.asyncio
     async def test_options_flow_uses_existing_options_as_defaults(self):
@@ -284,18 +286,34 @@ class TestOptionsFlow:
         assert result["data"] == payload
 
     @pytest.mark.asyncio
-    async def test_invalid_period_start_raises(self):
+    async def test_invalid_period_start_returns_form_with_error(self):
         from custom_components.aigues_de_reus.const import CONF_BILLING_PERIOD_START
-        import voluptuous as vol
 
         flow = AiguesDeReusOptionsFlow()
         flow.async_show_form = lambda **kw: {"type": "form", **kw}
+        flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
+
         with _stub_config_entry({}):
-            result = await flow.async_step_init(None)
-        schema = result["data_schema"]
-        with pytest.raises(vol.Invalid):
-            schema({
+            result = await flow.async_step_init({
                 CONF_UPDATE_INTERVAL_HOURS: 4,
                 CONF_BACKFILL_DAYS: 60,
                 CONF_BILLING_PERIOD_START: "not-a-date",
             })
+        # Re-renders the form with an error keyed on the offending field
+        assert result["type"] == "form"
+        assert result["errors"] == {CONF_BILLING_PERIOD_START: "invalid_date"}
+
+    @pytest.mark.asyncio
+    async def test_valid_period_start_persists(self):
+        from custom_components.aigues_de_reus.const import CONF_BILLING_PERIOD_START
+
+        flow = AiguesDeReusOptionsFlow()
+        flow.async_create_entry = lambda **kw: {"type": "create_entry", **kw}
+        with _stub_config_entry({}):
+            result = await flow.async_step_init({
+                CONF_UPDATE_INTERVAL_HOURS: 4,
+                CONF_BACKFILL_DAYS: 60,
+                CONF_BILLING_PERIOD_START: "2026-02-11",
+            })
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_BILLING_PERIOD_START] == "2026-02-11"

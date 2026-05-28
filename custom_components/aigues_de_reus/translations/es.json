@@ -39,6 +39,9 @@
     }
   },
   "options": {
+    "error": {
+      "invalid_date": "Formato de fecha inválido. Usa YYYY-MM-DD o déjalo en blanco."
+    },
     "step": {
       "init": {
         "title": "Opciones de Aigües de Reus",

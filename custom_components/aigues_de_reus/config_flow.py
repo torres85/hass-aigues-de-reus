@@ -12,6 +12,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import config_validation as cv
 
 from .api import AiguesDeReusClient, AuthError
 from .const import (
@@ -173,22 +174,21 @@ class AiguesDeReusConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
 
-def _validate_iso_date_or_empty(value: Any) -> str:
-    """Voluptuous validator: accept "" or a YYYY-MM-DD string."""
-    if value is None or value == "":
+_NON_NEG_FLOAT = vol.All(vol.Coerce(float), vol.Range(min=0))
+
+
+def _validate_period_start(value: str) -> str:
+    """Accept "" or YYYY-MM-DD. Called only on user submission, not at
+    schema-render time, so voluptuous_serialize never has to walk it."""
+    if not value:
         return ""
-    if not isinstance(value, str):
-        raise vol.Invalid("Has de ser una data en format YYYY-MM-DD")
     try:
         from datetime import date as _date
 
         _date.fromisoformat(value)
     except ValueError as err:
-        raise vol.Invalid("Format de data no vàlid (esperat YYYY-MM-DD)") from err
+        raise vol.Invalid("invalid_date") from err
     return value
-
-
-_NON_NEG_FLOAT = vol.All(vol.Coerce(float), vol.Range(min=0))
 
 
 class AiguesDeReusOptionsFlow(OptionsFlow):
@@ -197,10 +197,18 @@ class AiguesDeReusOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            try:
+                user_input[CONF_BILLING_PERIOD_START] = _validate_period_start(
+                    user_input.get(CONF_BILLING_PERIOD_START, "")
+                )
+            except vol.Invalid:
+                errors[CONF_BILLING_PERIOD_START] = "invalid_date"
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
-        current = self.config_entry.options
+        current = self.config_entry.options if user_input is None else user_input
 
         def _opt(key: str, default: Any) -> Any:
             return current.get(key, default)
@@ -230,13 +238,13 @@ class AiguesDeReusOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_TARIFF_ENABLED,
                     default=_opt(CONF_TARIFF_ENABLED, DEFAULT_TARIFF_ENABLED),
-                ): bool,
+                ): cv.boolean,
                 vol.Required(
                     CONF_BILLING_PERIOD_START,
                     default=_opt(
                         CONF_BILLING_PERIOD_START, DEFAULT_BILLING_PERIOD_START
                     ),
-                ): _validate_iso_date_or_empty,
+                ): cv.string,
                 vol.Required(
                     CONF_BILLING_PERIOD_DAYS,
                     default=_opt(
@@ -372,4 +380,6 @@ class AiguesDeReusOptionsFlow(OptionsFlow):
                 ): _NON_NEG_FLOAT,
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(
+            step_id="init", data_schema=schema, errors=errors
+        )

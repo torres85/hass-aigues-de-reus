@@ -77,6 +77,9 @@ class AiguesDeReusCoordinator(DataUpdateCoordinator[CoordinatorData]):
         self._statistic_id = (
             f"{DOMAIN}:water_consumption_{client.contrato}".lower()
         )
+        self._cost_statistic_id = (
+            f"{DOMAIN}:water_cost_{client.contrato}".lower()
+        )
         self._force_backfill = False
 
     @property
@@ -166,6 +169,14 @@ class AiguesDeReusCoordinator(DataUpdateCoordinator[CoordinatorData]):
 
         # Push hourly stats to recorder
         await self._async_import_statistics(hourly_rows, full_rebuild=is_backfill)
+
+        # Push hourly cost stats too — only if tariffs are enabled. Same
+        # backfill semantics as the consumption stat: full_rebuild rewrites
+        # the whole window with running_sum starting at 0.
+        if self.entry.options.get(CONF_TARIFF_ENABLED, DEFAULT_TARIFF_ENABLED):
+            await self._async_import_cost_statistics(
+                hourly_rows, full_rebuild=is_backfill
+            )
 
         # Compose snapshot
         snapshot = CoordinatorData(raw_hourly=hourly_rows)
@@ -338,13 +349,16 @@ class AiguesDeReusCoordinator(DataUpdateCoordinator[CoordinatorData]):
             datetime.combine(d, datetime.min.time()).replace(hour=h)
         )
 
-    async def _async_last_stat_entry(self) -> dict[str, Any] | None:
+    async def _async_last_stat_entry(
+        self, statistic_id: str | None = None
+    ) -> dict[str, Any] | None:
+        sid = statistic_id or self._statistic_id
         instance = get_instance(self.hass)
         last_stats = await instance.async_add_executor_job(
-            get_last_statistics, self.hass, 1, self._statistic_id, True, {"sum"}
+            get_last_statistics, self.hass, 1, sid, True, {"sum"}
         )
-        if last_stats and last_stats.get(self._statistic_id):
-            return last_stats[self._statistic_id][0]
+        if last_stats and last_stats.get(sid):
+            return last_stats[sid][0]
         return None
 
     async def _async_last_stat_start(self) -> datetime | None:
@@ -429,6 +443,116 @@ class AiguesDeReusCoordinator(DataUpdateCoordinator[CoordinatorData]):
         async_add_external_statistics(self.hass, metadata, stats)
         _LOGGER.info(
             "Imported %d hourly water statistics (full_rebuild=%s, first=%s, last=%s)",
+            len(stats),
+            full_rebuild,
+            stats[0]["start"].isoformat(),
+            stats[-1]["start"].isoformat(),
+        )
+
+    async def _async_import_cost_statistics(
+        self,
+        hourly_rows: list[dict[str, Any]],
+        *,
+        full_rebuild: bool = False,
+    ) -> None:
+        """Emit per-hour € as long-term statistics so the Energy dashboard
+        can window-recalculate cost (sum_final − sum_initial) like with the
+        m³ stat. Each hour's value =
+            variable_cost_for_that_m3_at_current_tier
+            + (water_fixed + sewer_fixed + canon_fixed) / 24
+            + IVA on the variable + fixed water/sewer slice
+        Tier crossings follow a `cum_m3_period` that resets every billing
+        period, so a long backfill behaves the same as the real invoices.
+        """
+        if not hourly_rows:
+            return
+
+        rows_sorted = sorted(
+            (r for r in hourly_rows if r.get("ConsumoM3") is not None),
+            key=lambda r: (
+                AiguesDeReusCoordinator._row_date(r) or date.min,
+                int(r.get("Hora") or 0),
+            ),
+        )
+        if not rows_sorted:
+            return
+
+        config = TariffConfig.from_options(self.entry.options)
+
+        if full_rebuild:
+            running_sum = 0.0
+            cutoff: datetime | None = None
+        else:
+            last_entry = await self._async_last_stat_entry(self._cost_statistic_id)
+            running_sum = (
+                float(last_entry.get("sum") or 0.0) if last_entry else 0.0
+            )
+            cutoff = None
+            if last_entry is not None:
+                ts = last_entry.get("start")
+                if isinstance(ts, (int, float)):
+                    cutoff = datetime.fromtimestamp(ts, tz=timezone.utc)
+                elif isinstance(ts, str):
+                    cutoff = datetime.fromisoformat(ts)
+
+        # Hourly fixed prorate: 24 hours per day. IVA only over water+sewer.
+        water_fix_h = config.water_fixed_per_day / 24.0
+        sewer_fix_h = config.sewer_fixed_per_day / 24.0
+        canon_fix_h = config.canon_fixed_per_day / 24.0
+        fixed_iva_per_hour = config.iva_rate * (water_fix_h + sewer_fix_h)
+        fixed_per_hour = water_fix_h + sewer_fix_h + canon_fix_h + fixed_iva_per_hour
+
+        # Walk rows in order, resetting cum_m3 every billing-period boundary
+        cum_m3 = 0.0
+        current_period_start: date | None = None
+        stats: list[StatisticData] = []
+        for row in rows_sorted:
+            row_date = AiguesDeReusCoordinator._row_date(row)
+            start = self._row_datetime(row)
+            if row_date is None or start is None:
+                continue
+            start_utc = dt_util.as_utc(start).replace(
+                minute=0, second=0, microsecond=0
+            )
+            if cutoff is not None and start_utc <= cutoff:
+                continue
+
+            row_period_start = self._resolve_period_start(row_date)
+            if current_period_start != row_period_start:
+                cum_m3 = 0.0
+                current_period_start = row_period_start
+
+            m3 = float(row["ConsumoM3"])
+            if m3 < 0:
+                m3 = 0.0
+            slice_cost = calculate_cost(
+                m3=m3,
+                days=0,
+                config=config,
+                cum_m3_before=cum_m3,
+                include_fixed=False,
+            )
+            cum_m3 += m3
+            hour_value = slice_cost.total + fixed_per_hour
+            running_sum += hour_value
+            stats.append(
+                StatisticData(start=start_utc, state=hour_value, sum=running_sum)
+            )
+
+        if not stats:
+            return
+
+        metadata = StatisticMetaData(
+            has_mean=False,
+            has_sum=True,
+            name=f"Cost d'aigua ({self.client.contrato})",
+            source=DOMAIN,
+            statistic_id=self._cost_statistic_id,
+            unit_of_measurement="EUR",
+        )
+        async_add_external_statistics(self.hass, metadata, stats)
+        _LOGGER.info(
+            "Imported %d hourly cost statistics (full_rebuild=%s, first=%s, last=%s)",
             len(stats),
             full_rebuild,
             stats[0]["start"].isoformat(),

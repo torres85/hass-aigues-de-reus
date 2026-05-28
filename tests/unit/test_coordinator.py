@@ -349,3 +349,139 @@ class TestCostPopulation:
             coord._populate_costs(snapshot, [], date(2026, 5, 28))
         assert snapshot.today_cost_eur is None
         assert snapshot.month_cost_eur is None
+
+
+class TestCostStatisticsImport:
+    """Validate the Energy-dashboard-friendly cost stat emission."""
+
+    @staticmethod
+    def _coord_with_tariffs(extra_options=None):
+        from custom_components.aigues_de_reus.const import (
+            CONF_BILLING_PERIOD_DAYS,
+            CONF_BILLING_PERIOD_START,
+            CONF_TARIFF_ENABLED,
+            DOMAIN,
+        )
+        opts = {
+            CONF_TARIFF_ENABLED: True,
+            CONF_BILLING_PERIOD_START: "2026-05-01",
+            CONF_BILLING_PERIOD_DAYS: 60,
+        }
+        if extra_options:
+            opts.update(extra_options)
+        entry = MagicMock()
+        entry.options = opts
+        client = MagicMock()
+        client.contrato = "9999999"
+        with patch.object(
+            AiguesDeReusCoordinator, "__init__", lambda self, *a, **k: None
+        ):
+            coord = AiguesDeReusCoordinator.__new__(AiguesDeReusCoordinator)
+            coord.entry = entry
+            coord.client = client
+            coord.hass = MagicMock()
+            coord._statistic_id = (
+                f"{DOMAIN}:water_consumption_{client.contrato}".lower()
+            )
+            coord._cost_statistic_id = (
+                f"{DOMAIN}:water_cost_{client.contrato}".lower()
+            )
+        return coord
+
+    @staticmethod
+    def _make_rows(start_day, end_day, m3_per_hour=0.05):
+        rows = []
+        for day in range(start_day, end_day + 1):
+            for h in range(24):
+                rows.append({
+                    "Fecha": f"2026-05-{day:02d}T00:00:00",
+                    "Hora": h,
+                    "ConsumoM3": m3_per_hour,
+                })
+        return rows
+
+    @pytest.mark.asyncio
+    async def test_full_rebuild_emits_monotonic_cost_sum(self):
+        coord = self._coord_with_tariffs()
+        rows = self._make_rows(15, 17, m3_per_hour=0.05)  # 3 days * 24h
+        with patch(
+            "custom_components.aigues_de_reus.coordinator.async_add_external_statistics"
+        ) as mock_add:
+            await coord._async_import_cost_statistics(rows, full_rebuild=True)
+        assert mock_add.called
+        _hass, meta, stats = mock_add.call_args[0]
+        assert meta["statistic_id"] == "aigues_de_reus:water_cost_9999999"
+        assert meta["unit_of_measurement"] == "EUR"
+        assert len(stats) == 72
+        # Sum increases monotonically
+        for prev, curr in zip(stats, stats[1:]):
+            assert curr["sum"] > prev["sum"]
+        # Each hour's state > 0 (we have consumption + fixed prorate)
+        assert all(s["state"] > 0 for s in stats)
+
+    @pytest.mark.asyncio
+    async def test_incremental_continues_running_sum(self):
+        coord = self._coord_with_tariffs()
+        cutoff = datetime(2026, 5, 16, 12, 0, tzinfo=timezone.utc)
+        coord._async_last_stat_entry = AsyncMock(return_value={
+            "start": cutoff.timestamp(),
+            "sum": 7.5,
+        })
+        rows = self._make_rows(16, 17, m3_per_hour=0.05)
+        with patch(
+            "custom_components.aigues_de_reus.coordinator.async_add_external_statistics"
+        ) as mock_add:
+            await coord._async_import_cost_statistics(rows, full_rebuild=False)
+        stats = mock_add.call_args[0][2]
+        # All emitted stats start strictly after cutoff
+        for s in stats:
+            assert s["start"] > cutoff
+        # Running sum continues from 7.5, doesn't reset
+        assert stats[0]["sum"] > 7.5
+
+    @pytest.mark.asyncio
+    async def test_period_boundary_resets_cum_m3(self):
+        # Period of 30 days starting 2026-04-01. Rows span the boundary
+        # 2026-05-01: with a tier limit of 5 m3 we'd cross into tier 2 if
+        # cum_m3 didn't reset.
+        from custom_components.aigues_de_reus.const import (
+            CONF_BILLING_PERIOD_DAYS,
+            CONF_BILLING_PERIOD_START,
+            CONF_WATER_TIER1_EUR_PER_M3,
+            CONF_WATER_TIER1_LIMIT_M3,
+            CONF_WATER_TIER2_EUR_PER_M3,
+        )
+        coord = self._coord_with_tariffs(extra_options={
+            CONF_BILLING_PERIOD_START: "2026-04-01",
+            CONF_BILLING_PERIOD_DAYS: 30,
+            CONF_WATER_TIER1_LIMIT_M3: 5.0,
+            CONF_WATER_TIER1_EUR_PER_M3: 0.50,
+            CONF_WATER_TIER2_EUR_PER_M3: 5.00,  # exaggerated to make the diff obvious
+        })
+        # Day 30: 4 m³ (well within tier 1, ends period at 4 m³)
+        # Day 1 of next period (2026-05-01): 4 m³ — must restart at tier 1
+        rows = []
+        for h in range(24):
+            rows.append({"Fecha": "2026-04-30T00:00:00", "Hora": h, "ConsumoM3": 4.0/24})
+        for h in range(24):
+            rows.append({"Fecha": "2026-05-01T00:00:00", "Hora": h, "ConsumoM3": 4.0/24})
+
+        with patch(
+            "custom_components.aigues_de_reus.coordinator.async_add_external_statistics"
+        ) as mock_add:
+            await coord._async_import_cost_statistics(rows, full_rebuild=True)
+        stats = mock_add.call_args[0][2]
+        # Total of day 1 hours == total of day 2 hours within float tolerance:
+        # if the period reset works, both days price 4 m³ at the cheap tier.
+        day1_states = [s["state"] for s in stats[:24]]
+        day2_states = [s["state"] for s in stats[24:48]]
+        assert sum(day1_states) == pytest.approx(sum(day2_states), rel=1e-6)
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_rows(self):
+        coord = self._coord_with_tariffs()
+        with patch(
+            "custom_components.aigues_de_reus.coordinator.async_add_external_statistics"
+        ) as mock_add:
+            await coord._async_import_cost_statistics([], full_rebuild=True)
+        assert not mock_add.called

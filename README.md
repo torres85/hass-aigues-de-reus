@@ -60,6 +60,13 @@ Re-importa les estadístiques horàries del període configurat. Útil si vols a
 
 Si vols veure el **cost** del consum d'aigua a més dels m³, activa l'estimació de tarifes des de **Configuració → Aigües de Reus → Configurar**:
 
+### Al panell d'energia
+
+> ⚠️ **Important:** als sensors `Cost d'avui` i `Cost d'aquest mes` són per a *cards* normals; **NO** els facis servir com a "Costos" al panell d'energia (donen el valor *actual* sigui quina sigui la finestra que triïs).
+>
+> Al panell d'energia tria sempre l'estadística externa **`Cost d'aigua (<el-teu-contracte>)`** (`aigues_de_reus:water_cost_<contracte>`). HA recalcula el cost de la finestra que tries (avui/setmana/mes/personalitzat) automàticament. La pots posar a **Aigua → Afegir consum → Costos → Utilitzar una entitat amb el cost real**.
+
+
 1. Marca *Activa l'estimació de costos*.
 2. Indica la **data d'inici del període de facturació** actual (la trobes a la teva última factura, p.ex. `2026-02-11`) i la **durada típica del cicle** (Reus: 60 dies). El cicle s'auto-avança quan acaba.
 3. Introdueix les **tarifes** de la teva factura. Els valors per defecte són els vigents a Reus el 2026 (eBOPT 30.12.2025 + DOGC 9632 / Llei 3/2026).
